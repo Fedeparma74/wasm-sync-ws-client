@@ -1,0 +1,29 @@
+[package]
+name = "wasm-sync-ws-client"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+console_error_panic_hook = "0.1"
+
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+
+js-sys = { version = "0.3" }
+web-sys = { version = "0.3", features = [
+    "MessageEvent",
+    "Worker",
+    "WorkerOptions",
+    "WorkerType",
+] }
+
+[package.release]
+debug = true
+lto = true
+opt-level = "s"
