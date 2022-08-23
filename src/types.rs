@@ -3,7 +3,7 @@ use serde::Serialize;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
 #[wasm_bindgen]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum WsStatus {
     Connecting,
     Open,
@@ -15,6 +15,7 @@ pub enum WsStatus {
 pub struct WorkerMessage {
     connect: Option<String>,
     request: Option<WebSocketMessage>,
+    close: bool,
 }
 
 #[wasm_bindgen]
@@ -23,12 +24,21 @@ impl WorkerMessage {
         WorkerMessage {
             connect: Some(message),
             request: None,
+            close: false,
         }
     }
     pub(crate) fn new_request(message: WsMessage) -> WorkerMessage {
         WorkerMessage {
             connect: None,
             request: Some(message.into()),
+            close: false,
+        }
+    }
+    pub(crate) fn new_close() -> WorkerMessage {
+        WorkerMessage {
+            connect: None,
+            request: None,
+            close: true,
         }
     }
 
@@ -43,6 +53,11 @@ impl WorkerMessage {
             Some(request) => request.to_owned().into(),
             None => JsValue::UNDEFINED,
         }
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn close(&self) -> bool {
+        self.close
     }
 }
 

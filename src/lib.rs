@@ -27,16 +27,20 @@ impl WsClient {
 
         let mut worker_options = WorkerOptions::new();
         worker_options.type_(WorkerType::Module);
+
         let ws_worker = Worker::new_with_options(
-            "../node_modules/wasm-sync-ws-client/ws-worker.ts",
+            // "../node_modules/wasm-sync-ws-client/ws-worker.ts",
+            "./ws-worker.ts",
             &worker_options,
         )?;
 
-        let max_response_bytes = 100;
+        let max_response_bytes = 1024;
         let response_buffer = SharedArrayBuffer::new(4 * max_response_bytes);
         let response_array = Int32Array::new(&response_buffer);
         // fill response_array of '256' (max u8 value is 255, this allows us to discriminate the end of a message)
-        response_array.fill(256, 0, response_array.length());
+        for i in 0..response_array.length() {
+            Atomics::store(&response_array, i, 256)?;
+        }
 
         // init sharedArrayBuffer on the worker side
         ws_worker.post_message(&response_buffer)?;
@@ -87,12 +91,20 @@ impl WsClient {
         self.ws_status.borrow().to_owned()
     }
 
+    pub fn close(&self) -> Result<(), JsValue> {
+        self.ws_worker
+            .post_message(&serde_wasm_bindgen::to_value(&WorkerMessage::new_close())?)?;
+        Ok(())
+    }
+
     pub fn call_binary(&self, message: Vec<u8>) -> Result<String, JsValue> {
+        self.flush_response()?;
         self.send_binary(message)?;
         self.recv()
     }
 
     pub fn call_text(&self, message: String) -> Result<String, JsValue> {
+        self.flush_response()?;
         self.send_text(message)?;
         self.recv()
     }
@@ -129,5 +141,12 @@ impl WsClient {
         }
 
         decode_byte_response(&self.response_array)
+    }
+
+    pub fn flush_response(&self) -> Result<(), JsValue> {
+        for i in 0..self.response_array.length() {
+            Atomics::store(&self.response_array, i, 256)?;
+        }
+        Ok(())
     }
 }
