@@ -3,7 +3,7 @@ use serde::Serialize;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
 #[wasm_bindgen]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WsStatus {
     Connecting,
     Open,

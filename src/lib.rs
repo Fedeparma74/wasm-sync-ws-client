@@ -8,8 +8,11 @@ use wasm_bindgen::prelude::{wasm_bindgen, Closure};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{MessageEvent, Worker, WorkerOptions, WorkerType};
 
-pub use types::{WorkerMessage, WsMessage, WsStatus};
+use types::WorkerMessage;
+pub use types::{WsMessage, WsStatus};
 use utils::decode_byte_response;
+
+const MAX_RESPONSE_BYTES: u32 = 8192;
 
 #[wasm_bindgen]
 pub struct WsClient {
@@ -29,13 +32,15 @@ impl WsClient {
         worker_options.type_(WorkerType::Module);
 
         let ws_worker = Worker::new_with_options(
+            // &js_sys::eval(include_str!("ws_worker.js"))?
+            //     .as_string()
+            //     .unwrap(),
             // "../node_modules/wasm-sync-ws-client/ws-worker.ts",
-            "./ws-worker.ts",
+            "./ws.worker.js",
             &worker_options,
         )?;
 
-        let max_response_bytes = 1024;
-        let response_buffer = SharedArrayBuffer::new(4 * max_response_bytes);
+        let response_buffer = SharedArrayBuffer::new(4 * MAX_RESPONSE_BYTES);
         let response_array = Int32Array::new(&response_buffer);
         // fill response_array of '256' (max u8 value is 255, this allows us to discriminate the end of a message)
         for i in 0..response_array.length() {
@@ -64,7 +69,6 @@ impl WsClient {
                     "connected" => {
                         let mut ws_status = ws_status_clone.borrow_mut();
                         *ws_status = WsStatus::Open;
-                        // TODO: maybe add request queue
                     }
                     "closed" => {
                         let mut ws_status = ws_status_clone.borrow_mut();
@@ -110,17 +114,25 @@ impl WsClient {
     }
 
     pub fn send_binary(&self, message: Vec<u8>) -> Result<(), JsValue> {
-        self.ws_worker.post_message(&serde_wasm_bindgen::to_value(
-            &WorkerMessage::new_request(WsMessage::Binary(message)),
-        )?)?;
+        if self.ws_status.borrow().to_owned() != WsStatus::Open {
+            return Err(JsValue::from_str("Websocket not connected"));
+        } else {
+            self.ws_worker.post_message(&serde_wasm_bindgen::to_value(
+                &WorkerMessage::new_request(WsMessage::Binary(message)),
+            )?)?;
+        }
 
         Ok(())
     }
 
     pub fn send_text(&self, message: String) -> Result<(), JsValue> {
-        self.ws_worker.post_message(&serde_wasm_bindgen::to_value(
-            &WorkerMessage::new_request(WsMessage::Text(message)),
-        )?)?;
+        if self.ws_status.borrow().to_owned() != WsStatus::Open {
+            return Err(JsValue::from_str("Websocket not connected"));
+        } else {
+            self.ws_worker.post_message(&serde_wasm_bindgen::to_value(
+                &WorkerMessage::new_request(WsMessage::Text(message)),
+            )?)?;
+        }
 
         Ok(())
     }
